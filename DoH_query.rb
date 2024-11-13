@@ -13,16 +13,23 @@ Record_types = {
 }
 
 doh_address = ARGV[0]
-queried_hostname = ARGV[1] || Defaults[:queried_hostname]
+queried_hostname = ARGV[1]
 record_type = ARGV[2] || ?4
 record_type = Record_types[record_type]
 
 Defaults = {
   queried_hostname: 'example.com',
   query_type: Resolv::DNS::Resource::IN::A,
-  port: 443,
-  doh_address: doh_address
+  doh_port: 443,
+  doh_address: doh_address,
+  path: '/dns-query',
+  parameter: 'dns'
 }
+
+queried_hostname = Defaults[:queried_hostname]
+re_match = doh_address.match(/(?<!\d)((?:\d{1,3}\.){3}\d{1,3})(?::(\d{1,5}))?(?!\d)/)
+doh_address = re_match[1]
+doh_port = (re_match[2] || Defaults[:doh_port]).to_i()
 
 def wire_codec(
     hostname: Defaults[:queried_hostname],
@@ -40,16 +47,21 @@ def wire_codec(
   end
 end
 
-def get_doh_response(connection, wire64_query: nil)
+def doh_get_response(connection, wire64_query: nil)
   https_get_options = {'accept' => 'application/dns-message'}
-  return  connection.get('/dns-query?dns=' + wire64_query, https_get_options)
+  begin
+    return connection.get(Defaults[:path] + ?? + Defaults[:parameter] + ?= +
+      wire64_query, https_get_options)
+  rescue => exception
+    return exception
+  end
 end
 
 def prepare_connection(
-    port: Defaults[:port],
-    doh_address: Defaults[:doh_address]
+    doh_address: Defaults[:doh_address],
+    doh_port: Defaults[:doh_port]
   )
-  https_connection = Net::HTTP.new(?*, port)
+  https_connection = Net::HTTP.new(?*, doh_port)
   https_connection.use_ssl = true
   https_connection.ssl_version = :TLSv1_2
   https_connection.verify_hostname = false
@@ -58,12 +70,12 @@ def prepare_connection(
 end
 
 def print_doh_response(response)
-  raise('response object falsey') unless response
+  raise('TLS connection failed to establish!') if response.is_a?(OpenSSL::SSL::SSLError)
   
   if response.code.to_i == 200
     response = wire_codec(wire64: response.body)
   else
-    raise("Failed to query DoH server: #{response.code} #{response.message}")
+    raise("Failed to query DoH server: #{response.code} #{response.message}!")
   end
   
   puts('Requests:')
@@ -87,6 +99,6 @@ end
 
 wire_query = wire_codec(hostname: queried_hostname, type: record_type)
 wire64_query = Base64.urlsafe_encode64(wire_query).delete(?=)
-connection = prepare_connection()
-response = get_doh_response(connection, wire64_query: wire64_query)
+connection = prepare_connection(doh_address: doh_address, doh_port: doh_port)
+response = doh_get_response(connection, wire64_query: wire64_query)
 print_doh_response(response)
