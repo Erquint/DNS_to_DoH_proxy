@@ -40,18 +40,13 @@ record_type = Record_types[record_type]
 wire_query = wire_codec(hostname: queried_hostname, type: record_type)
 wire64_query = Base64.urlsafe_encode64(wire_query).delete(?=)
 
-http_connection_options = {
-  use_ssl: true,
-  ssl_version: :TLSv1_2,
-  verify_hostname: false,
-  ipaddr: doh_server_address
-}
+http = Net::HTTP.new(?*, 443)
+http.use_ssl = true
+http.ssl_version = :TLSv1_2
+http.verify_hostname = false
+http.ipaddr = doh_server_address
 http_get_options = {'accept' => 'application/dns-message'}
-
-response = nil
-http = Net::HTTP.start(?*, 443, nil, nil, nil, nil, http_connection_options) do |connection|
-  response = connection.get('/dns-query?dns=' + wire64_query, http_get_options)
-end
+response = http.get('/dns-query?dns=' + wire64_query, http_get_options)
 
 if response.code.to_i == 200
   response = wire_codec(wire64: response.body)
