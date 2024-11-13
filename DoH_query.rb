@@ -34,24 +34,28 @@ doh_port = (re_match[2] || Defaults[:doh_port]).to_i()
 def wire_codec(
     hostname: Defaults[:queried_hostname],
     type: Defaults[:query_type],
-    wire64: nil,
-    recursion: true
+    wirecode: nil,
+    recursion: true,
+    b64: false
   )
-  if wire64 then
-    return Resolv::DNS::Message.decode(wire64)
+  if wirecode then
+    wirecode = Base64.urlsafe_decode64(wirecode) if b64
+    return Resolv::DNS::Message.decode(wirecode)
   else
-    message = Resolv::DNS::Message.new()
-    message.rd = recursion ? 1 : 0 # Recursion desired
-    message.add_question(hostname, type)
-    return message.encode()
+    wirecode = Resolv::DNS::Message.new()
+    wirecode.rd = recursion ? 1 : 0 # Recursion desired
+    wirecode.add_question(hostname, type)
+    wirecode =-wirecode.encode()
+    wirecode = Base64.urlsafe_encode64(wirecode).delete(?=) if b64
+    return wirecode
   end
 end
 
-def doh_get_response(connection, wire64_query: nil)
+def doh_get_response(connection, wire64_message: nil)
   https_get_options = {'accept' => 'application/dns-message'}
   begin
     return connection.get(Defaults[:path] + ?? + Defaults[:parameter] + ?= +
-      wire64_query, https_get_options)
+      wire64_message, https_get_options)
   rescue => exception
     return exception
   end
@@ -73,7 +77,7 @@ def print_doh_response(response)
   raise('TLS connection failed to establish!') if response.is_a?(OpenSSL::SSL::SSLError)
   
   if response.code.to_i == 200
-    response = wire_codec(wire64: response.body)
+    response = wire_codec(wirecode: response.body)
   else
     raise("Failed to query DoH server: #{response.code} #{response.message}!")
   end
@@ -97,8 +101,7 @@ def print_doh_response(response)
   return nil
 end
 
-wire_query = wire_codec(hostname: queried_hostname, type: record_type)
-wire64_query = Base64.urlsafe_encode64(wire_query).delete(?=)
+wire64_message = wire_codec(hostname: queried_hostname, type: record_type, b64: true)
 connection = prepare_connection(doh_address: doh_address, doh_port: doh_port)
-response = doh_get_response(connection, wire64_query: wire64_query)
+response = doh_get_response(connection, wire64_message: wire64_message)
 print_doh_response(response)
