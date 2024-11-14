@@ -4,7 +4,6 @@ Encoding.default_internal = Encoding::ASCII_8BIT
 
 require 'net/http'
 require 'resolv'
-require 'base64'
 # require 'G:\Projects\rb\Hyperspector\Hyperspector.rb'
 
 Record_types = {
@@ -51,11 +50,23 @@ def wire_codec(
   end
 end
 
-def doh_get_response(connection, wire64_message: nil)
-  https_get_options = {'accept' => 'application/dns-message'}
+def doh_get_response(connection, wire64_message)
+  https_get_headers = {'accept' => 'application/dns-message'}
+  path = Defaults[:path] + ?? + Defaults[:parameter] + ?= + wire64_message
   begin
-    return connection.get(Defaults[:path] + ?? + Defaults[:parameter] + ?= +
-      wire64_message, https_get_options)
+    return connection.get(path, https_get_headers)
+  rescue => exception
+    return exception
+  end
+end
+
+def doh_post_response(connection, wire_message)
+  https_post_headers = {
+    'Content-Type' => 'application/dns-message',
+    'Accept' => 'application/dns-message'
+  }
+  begin
+    return connection.post(Defaults[:path], wire_message, https_post_headers)
   rescue => exception
     return exception
   end
@@ -101,7 +112,9 @@ def print_doh_response(response)
   return nil
 end
 
-wire64_message = wire_codec(hostname: queried_hostname, type: record_type, b64: true)
 connection = prepare_connection(doh_address: doh_address, doh_port: doh_port)
-response = doh_get_response(connection, wire64_message: wire64_message)
+# wire64_message = wire_codec(hostname: queried_hostname, type: record_type, b64: true)
+# response = doh_get_response(connection, wire64_message)
+wire_message = wire_codec(hostname: queried_hostname, type: record_type)
+response = doh_post_response(connection, wire_message)
 print_doh_response(response)
