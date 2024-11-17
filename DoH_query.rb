@@ -344,3 +344,11 @@ serve_dns_doh_proxy(
   doh_port: doh_port,
   local_address_arpa: local_address_arpa
 )
+
+__END__
+To do:
+stop sercvices
+
+References:
+RFC 1035 : Domain Implementation and Specification : November 1987
+RFC 8484 : DNS Queries over HTTPS (DoH) : October 2018
