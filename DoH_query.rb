@@ -55,13 +55,13 @@ Defaults = {
   local_address_arpa: '100.0.168.192.in-addr.arpa'
 }
 
-def doh_post_response(connection, wire_message)
+def doh_post(connection, dns_message)
   https_post_headers = {
     'Content-Type' => 'application/dns-message',
     'Accept' => 'application/dns-message'
   }
   begin
-    response = connection.post(Defaults[:path], wire_message, https_post_headers)
+    response = connection.post(Defaults[:path], dns_message, https_post_headers)
   rescue => exception
     response = exception
   end
