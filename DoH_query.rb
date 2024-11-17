@@ -51,7 +51,8 @@ Defaults = {
   dns_address: '0.0.0.0',
   dns_port: 53,
   path: '/dns-query',
-  parameter: 'dns'
+  parameter: 'dns',
+  local_address_arpa: '100.0.168.192.in-addr.arpa'
 }
 
 def doh_post_response(connection, wire_message)
@@ -236,20 +237,57 @@ def serve_dns_doh_proxy(
     dns_address: Defaults[:dns_address],
     dns_port: Defaults[:dns_port],
     doh_address: Defaults[:doh_address],
-    doh_port: Defaults[:doh_port]
+    doh_port: Defaults[:doh_port],
+    local_address_arpa: Defaults[:local_address_arpa]
   )
   
   begin
-    socket = UDPSocket.new
+    socket = UDPSocket.new()
     socket.bind(dns_address, dns_port)
     puts("DNS server bound to #{dns_address}:#{dns_port}", nil)
     
-    while (dns_request, sender_addrinfo = socket.recvfrom(512)).first() do
+    while (dns_message, sender_addrinfo = socket.recvfrom(512)).first() do
+      time = Time.now()
+      handled_locally = false
       sender_class, sender_port, sender_address_label, sender_address = sender_addrinfo
-      doh_connection = prepare_doh_connection(doh_address: doh_address, doh_port: doh_port)
-      doh_response = doh_post_response(doh_connection, dns_request)
-      print_doh_response(Resolv::DNS::Message.decode(doh_response.body))
-      socket.send(doh_response.body, 0, sender_address, sender_port)
+      
+      dns_message_decoded = Resolv::DNS::Message.decode(dns_message)
+      if dns_message_decoded.question()[0][1] == Resolv::DNS::Resource::IN::PTR &&
+        dns_message_decoded.question()[0][0].to_s().include?('1.0.0.127.in-addr.arpa') ||
+        dns_message_decoded.question()[0][0].to_s().include?(local_address_arpa) ||
+        dns_message_decoded.question()[0][0].to_s().include?('7.3.3.1.in-addr.arpa') then
+        
+        dns_message_decoded.add_answer(
+          dns_message_decoded.question()[0][0], 1,
+          Resolv::DNS::Resource::IN::PTR.new(Resolv::DNS::Name.create('erquint.leet.'))
+        )
+        dns_message_decoded.rcode = 0
+        handled_locally = true
+      elsif dns_message_decoded.question()[0][1] == Resolv::DNS::Resource::IN::A &&
+        dns_message_decoded.question()[0][0].to_s() == 'erquint.leet' then
+        
+        dns_message_decoded.add_answer(
+          dns_message_decoded.question()[0][0], 1,
+          Resolv::DNS::Resource::IN::A.new('1.3.3.7')
+        )
+        dns_message_decoded.rcode = 0
+        handled_locally = true
+      else
+        doh_connection = prepare_doh_connection(doh_address: doh_address, doh_port: doh_port)
+        doh_response = doh_post(doh_connection, dns_message)
+        raise('TLS connection failed to establish!') if doh_response.is_a?(OpenSSL::SSL::SSLError)
+        raise("Failed to query DoH server: #{doh_response.code} #{doh_response.message}!") unless doh_response.code.to_i() == 200
+        dns_message = doh_response.body()
+      end
+      
+      if handled_locally then
+        print_dns_message(dns_message_decoded, sender_addrinfo, time)
+        dns_message = dns_message_decoded.encode()
+      else
+        print_dns_message(dns_message, sender_addrinfo, time)
+      end
+      
+      socket.send(dns_message, 0, sender_address, sender_port)
     end
     
     raise("Connection closed.\ndns_message: #{dns_message.inspect()}") if dns_message.zero?
@@ -295,4 +333,14 @@ doh_full_address = ARGV[0]
 re_match = doh_full_address.match(/(?<!\d)((?:\d{1,3}\.){3}\d{1,3})(?::(\d{1,5}))?(?!\d)/)
 doh_address = re_match[1]
 doh_port = (re_match[2] || Defaults[:doh_port]).to_i()
-serve_dns_doh_proxy(dns_address: '0.0.0.0', doh_address: doh_address, doh_port: doh_port)
+socket = UDPSocket.new()
+socket.connect('192.168.0.1', 0)
+local_address = socket.local_address().ip_address()
+socket.close()
+local_address_arpa = "#{local_address.split('.').reverse().join('.')}.in-addr.arpa"
+serve_dns_doh_proxy(
+  dns_address: '0.0.0.0',
+  doh_address: doh_address,
+  doh_port: doh_port,
+  local_address_arpa: local_address_arpa
+)
