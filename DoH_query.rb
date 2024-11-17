@@ -5,6 +5,45 @@ Encoding.default_internal = Encoding::ASCII_8BIT
 require 'net/http'
 require 'resolv'
 require 'socket'
+# require 'G:\Projects\rb\Hyperspector\Hyperspector.rb'
+
+OPCODE_ENUM = {
+  0 =>  'A standard query (QUERY)',
+  1 =>  'An inverse query (IQUERY)',
+  2 =>  'A server status request (STATUS)',
+  3 =>  'Reserved for future use',
+  4 =>  'Reserved for future use',
+  5 =>  'Reserved for future use',
+  6 =>  'Reserved for future use',
+  7 =>  'Reserved for future use',
+  8 =>  'Reserved for future use',
+  9 =>  'Reserved for future use',
+  10 => 'Reserved for future use',
+  11 => 'Reserved for future use',
+  12 => 'Reserved for future use',
+  13 => 'Reserved for future use',
+  14 => 'Reserved for future use',
+  15 => 'Reserved for future use'
+}
+
+RCODE_ENUM = {
+  0 =>  'No error condition.',
+  1 =>  'Format error - The name server was unable to interpret the query.',
+  2 =>  'Server failure - The name server was unable to process this query due to a problem with the name server.',
+  3 =>  'Name Error - Meaningful only for responses from an authoritative name server, this code signifies that the domain name referenced in the query does not exist.',
+  4 =>  'Not Implemented - The name server does not support the requested kind of query.',
+  5 =>  'Refused - The name server refuses to perform the specified operation for policy reasons.  For example, a name server may not wish to provide the information to the particular requester, or a name server may not wish to perform a particular operation (e.g., zone transfer) for particular data.',
+  6 =>  'Reserved for future use',
+  7 =>  'Reserved for future use',
+  8 =>  'Reserved for future use',
+  9 =>  'Reserved for future use',
+  10 => 'Reserved for future use',
+  11 => 'Reserved for future use',
+  12 => 'Reserved for future use',
+  13 => 'Reserved for future use',
+  14 => 'Reserved for future use',
+  15 => 'Reserved for future use'
+}
 
 Defaults = {
   doh_address: '1.1.1.1',
@@ -39,14 +78,156 @@ def prepare_doh_connection(doh_address: Defaults[:doh_address], doh_port: Defaul
   return(https_connection)
 end
 
-def print_doh_response(doh_response_body_decoded)
-  if doh_response_body_decoded.answer.any?() then
-    puts('Resolved:')
-    pp(doh_response_body_decoded.answer)
-  else
-    puts('Unresolved:')
-    pp(doh_response_body_decoded.question)
+def byte_bool?(integer)
+  raise('Not an integer!') unless integer.is_a?(Integer)
+  return (integer >= 0 && integer <= 1) ? true : false
+end
+
+class Resolv::DNS::Name
+  alias :to_s_original :to_s
+  def to_s(*full)
+    vararg_size = full.size()
+    vararg_exception = ArgumentError.new('Wrong number of arguments! ' + 
+      "(given #{vararg_size}, expected 0..1)")
+    type_exception = ArgumentError.new('Only boolean arguments accepted!')
+    
+    if vararg_size == 0 then
+      return(self.to_s_original())
+    elsif vararg_size == 1 then
+      full = full.first()
+      raise(type_exception) unless [TrueClass, FalseClass].include?(full.class())
+      return(self.to_s_original()) unless full
+      return(self.to_s_original() + (self.absolute?() ? ?. : ''))
+    else
+      raise(vararg_exception)
+    end
   end
+end
+
+class Class
+  alias :to_s_original :to_s
+  def to_s(*short)
+    vararg_size = short.size()
+    vararg_exception = ArgumentError.new('Wrong number of arguments! ' + 
+      "(given #{vararg_size}, expected 0..1)")
+    type_exception = ArgumentError.new('Only boolean arguments accepted!')
+    
+    if vararg_size == 0 then
+      return(self.to_s_original())
+    elsif vararg_size == 1 then
+      short = short.first()
+      raise(type_exception) unless [TrueClass, FalseClass].include?(short.class())
+      return(self.to_s_original()) unless short
+      return(self.to_s().split('::').last())
+    else
+      raise(vararg_exception)
+    end
+  end
+end
+
+def print_dns_message(dns_message, sender_addrinfo, time)
+  if dns_message.is_a?(String) then
+    dns_message_decoded = Resolv::DNS::Message.decode(dns_message)
+  else
+    dns_message_decoded = dns_message
+  end
+  
+  s_class, s_port, s_address_label, s_address = sender_addrinfo
+  
+  qr = dns_message_decoded.qr() # Unnecessary for a response.
+  raise('Invalid QR!') unless byte_bool?(qr)
+  qr = qr.zero?() ? 'Query' : 'Response'
+  
+  id = dns_message_decoded.id()
+  
+  opcode = dns_message_decoded.opcode()
+  raise('Invalid RCODE!') unless OPCODE_ENUM.include?(opcode)
+  opcode = OPCODE_ENUM[opcode]
+  
+  rcode = dns_message_decoded.rcode()
+  raise('Invalid RCODE!') unless OPCODE_ENUM.include?(rcode)
+  rcode = RCODE_ENUM[rcode]
+  
+  rd = dns_message_decoded.rd()
+  raise('Invalid RD!') unless byte_bool?(rd)
+  rd = rd.nonzero?() ? "\e[32mRecurvise question\e[0m" : "\e[33mNon-recursive question\e[0m"
+  
+  ra = dns_message_decoded.ra()
+  raise('Invalid RA!') unless byte_bool?(ra)
+  ra = ra.nonzero?() ? "\e[32mRecursive answer\e[0m" : "\e[33mNon-recursive answer\e[0m"
+  
+  aa = dns_message_decoded.aa()
+  raise('Invalid AA!') unless byte_bool?(aa)
+  aa = aa.nonzero?() ? "\e[32mAuthoritative answer\e[0m" : "\e[33mNon-authoritative answer\e[0m"
+  
+  tc = dns_message_decoded.tc()
+  raise('Invalid TC!') unless byte_bool?(tc)
+  tc = tc.nonzero?() ? "\e[33mTruncated message" : "\e[32mNon-truncated message\e[0m"
+  
+  questions = dns_message_decoded.question().dup()
+  if questions.any?() && questions.all?(){next(_1.size() == 2)} then
+    questions.map!() do
+      next("#{_1[1].to_s(true)} #{_1[0].to_s(true)}")
+    end
+    questions = questions.join(?\n)
+  else
+    questions = 'None.'
+  end
+  
+  authorities = dns_message_decoded.authority().dup()
+  if authorities.any?() && authorities.all?(){next(_1.size == 3)} then
+    authorities.map!() do
+      next(<<~HEREDOC)
+        #{_1[0].to_s(true)} #{_1[2].class().to_s(true)}:
+          "MNAME:   #{_1[2].mname().to_s()}
+          "RNAME:   #{_1[2].rname().to_s()}
+          "SERIAL:  #{_1[2].serial().to_s()}
+          "REFRESH: #{_1[2].refresh().to_s()}
+          "RETRY:   #{_1[2].retry().to_s()}
+          "EXPIRE:  #{_1[2].expire().to_s()}
+          "MINIMUM: #{_1[2].minimum().to_s()}
+          "TTL:     #{_1[1].to_s()}
+      HEREDOC
+    end
+    authorities = authorities.join(?\n)
+  else
+    authorities = 'None.'
+  end
+  
+  answers = dns_message_decoded.answer().dup()
+  if answers.any?() && answers.all?(){next(_1.size == 3)} then
+    answers.map!() do
+      if _1[2].respond_to?(:address) then
+        next("#{_1[2].class().to_s(true)} #{_1[0].to_s(true)} " +
+        "#{_1[2].address().class().to_s(true)} " +
+        "#{_1[2].address().to_s()} TTL: #{_1[1]}")
+      elsif _1[2].respond_to?(:name) then
+        next("#{_1[2].class().to_s(true)} #{_1[0].to_s(true)} " +
+        "#{_1[2].name().to_s(true)} TTL: #{_1[1]}")
+      end
+    end
+    answers = answers.join(?\n)
+  else
+    answers = 'None.'
+  end
+  
+  additions = dns_message_decoded.additional().dup()
+  additions = 'None.' if additions.empty?()
+  
+  puts(<<~MESSAGE, nil)
+    #{time.strftime((id == 1 ? "\e[34m" : "\e[36m") + "%Y-%m-%d %H:%M:%S\e[0m")}
+    Queried by "#{s_address_label}" from #{s_address}:#{s_port} over #{s_class}. #{tc}.
+    #{qr} ##{id}: #{opcode} → #{rcode}
+    #{rd} → #{ra} (#{aa}).
+    \e[35mQuestions:\e[0m
+    #{questions}
+    \e[35mAuthorities:\e[0m
+    #{authorities}
+    \e[35mAnswers:\e[0m
+    #{answers}
+    \e[35mAdditions:\e[0m
+    #{additions}
+  MESSAGE
   
   return(nil)
 end
@@ -61,12 +242,10 @@ def serve_dns_doh_proxy(
   begin
     socket = UDPSocket.new
     socket.bind(dns_address, dns_port)
-    
-    puts "DNS server started on port #{dns_port}"
+    puts("DNS server bound to #{dns_address}:#{dns_port}", nil)
     
     while (dns_request, sender_addrinfo = socket.recvfrom(512)).first() do
       sender_class, sender_port, sender_address_label, sender_address = sender_addrinfo
-      puts("Queried from \"#{sender_address_label}\" on #{sender_address}:#{sender_port}.")
       doh_connection = prepare_doh_connection(doh_address: doh_address, doh_port: doh_port)
       doh_response = doh_post_response(doh_connection, dns_request)
       raise('TLS connection failed to establish!') if doh_response.is_a?(OpenSSL::SSL::SSLError)
