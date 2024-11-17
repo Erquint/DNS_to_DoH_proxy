@@ -248,28 +248,45 @@ def serve_dns_doh_proxy(
       sender_class, sender_port, sender_address_label, sender_address = sender_addrinfo
       doh_connection = prepare_doh_connection(doh_address: doh_address, doh_port: doh_port)
       doh_response = doh_post_response(doh_connection, dns_request)
-      raise('TLS connection failed to establish!') if doh_response.is_a?(OpenSSL::SSL::SSLError)
       print_doh_response(Resolv::DNS::Message.decode(doh_response.body))
       socket.send(doh_response.body, 0, sender_address, sender_port)
     end
     
-    raise(<<~HEREDOC) if [0, nil].include?(dns_request)
-      dns_request: #{dns_request.inspect()}
-      When recvfrom(2) returns 0,
-      Socket#recv_nonblock returns nil. In most cases it means the connection 
-      was closed, but it may also mean an empty packet was received, as the 
-      underlying API makes it impossible to distinguish these two cases.
+    raise("Connection closed.\ndns_message: #{dns_message.inspect()}") if dns_message.zero?
+    raise("Serving loop broke for unknown reason.\ndns_message: #{dns_message.inspect()}")
+  rescue Exception => exception
+    if exception.is_a?(Interrupt) then
+      puts('Exiting gracefully…')
+      exit(0)
+    elsif exception.is_a?(Errno::EADDRINUSE) then
+      puts(exception)
+      exit(1)
+    elsif exception.is_a?(Errno::ECONNRESET) then
+      puts(<<~HEREDOC)
+        #{exception}
+        On a UDP-datagram socket this error indicates a previous
+        send operation resulted in an ICMP Port Unreachable message.
       HEREDOC
-    raise('Serving loop broke for unknown reason.')
-  rescue => exception
-    pp(exception, 'Re-establishing a socket binding and serving again…')
-    puts(<<~HEREDOC) if exception.is_a?(Errno::ECONNRESET)
-      On a UDP-datagram socket this error indicatesa previous send operation
-      resulted in an ICMP Port Unreachable message.
-      HEREDOC
-    socket.close()
-    retry unless exception.is_a?(Interrupt)
+    else
+      puts(exception.full_message(highlight: true))
+    end
+    
+    if defined?(socket) && socket && !(socket.closed?()) then
+      if defined?(dns_message) && dns_message && dns_message.is_a?(String) then
+        dns_message_decoded = Resolv::DNS::Message.decode(dns_message)
+        dns_message_decoded.rcode = 2
+        dns_message = dns_message_decoded.encode()
+        socket.send(dns_message, 0, sender_address, sender_port)
+      end
+      socket.close()
+    end
+    
+    puts('Re-establishing a socket binding and serving again…')
+    
+    retry
   end
+  
+  puts('Rescue loop broke for unknown reason.')
   
   return(nil)
 end
