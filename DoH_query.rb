@@ -261,7 +261,6 @@ def serve_dns_doh_proxy(
           dns_message_decoded.question()[0][0], 1,
           Resolv::DNS::Resource::IN::PTR.new(Resolv::DNS::Name.create('erquint.leet.'))
         )
-        dns_message_decoded.rcode = 0
         handled_locally = true
       elsif dns_message_decoded.question()[0][1] == Resolv::DNS::Resource::IN::A &&
         dns_message_decoded.question()[0][0].to_s() == 'erquint.leet' then
@@ -270,7 +269,6 @@ def serve_dns_doh_proxy(
           dns_message_decoded.question()[0][0], 1,
           Resolv::DNS::Resource::IN::A.new('1.3.3.7')
         )
-        dns_message_decoded.rcode = 0
         handled_locally = true
       else
         doh_connection = prepare_doh_connection(doh_address: doh_address, doh_port: doh_port)
