@@ -255,20 +255,29 @@ def serve_dns_doh_proxy(
       if dns_message_decoded.question()[0][1] == Resolv::DNS::Resource::IN::PTR &&
         dns_message_decoded.question()[0][0].to_s().include?('1.0.0.127.in-addr.arpa') ||
         dns_message_decoded.question()[0][0].to_s().include?(local_address_arpa) ||
-        dns_message_decoded.question()[0][0].to_s().include?('7.3.3.1.in-addr.arpa') then
+        dns_message_decoded.question()[0][0].to_s().include?('7.3.3.1.in-addr.arpa') ||
+        dns_message_decoded.question()[0][0].to_s().include?("1.0.0.0#{'.0'*24}.0.0.0.0.ip6.arpa") ||
+        # ↓ Arpa lookup for for mock IPv6 address fe80::100.
+        dns_message_decoded.question()[0][0].to_s().include?("0.0.1.0#{'.0'*24}.0.8.e.f.ip6.arpa") ||
+        dns_message_decoded.question()[0][0].to_s().include?("7.3.1.1#{'.0'*24}.0.0.0.0.ip6.arpa") then
         
         dns_message_decoded.add_answer(
           dns_message_decoded.question()[0][0], 1,
           Resolv::DNS::Resource::IN::PTR.new(Resolv::DNS::Name.create('erquint.leet.'))
         )
         handled_locally = true
-      elsif dns_message_decoded.question()[0][1] == Resolv::DNS::Resource::IN::A &&
-        dns_message_decoded.question()[0][0].to_s() == 'erquint.leet' then
-        
-        dns_message_decoded.add_answer(
-          dns_message_decoded.question()[0][0], 1,
-          Resolv::DNS::Resource::IN::A.new('1.3.3.7')
-        )
+      elsif dns_message_decoded.question()[0][0].to_s() == 'erquint.leet' then
+        if dns_message_decoded.question()[0][1] == Resolv::DNS::Resource::IN::A
+          dns_message_decoded.add_answer(
+            dns_message_decoded.question()[0][0], 1,
+            Resolv::DNS::Resource::IN::A.new('1.3.3.7')
+          )
+        elsif dns_message_decoded.question()[0][1] == Resolv::DNS::Resource::IN::AAAA then
+          dns_message_decoded.add_answer(
+            dns_message_decoded.question()[0][0], 1,
+            Resolv::DNS::Resource::IN::AAAA.new('::1337')
+          )
+        end
         handled_locally = true
       else
         doh_connection = prepare_doh_connection(doh_address: doh_address, doh_port: doh_port)
