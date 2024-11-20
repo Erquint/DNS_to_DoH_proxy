@@ -9,30 +9,11 @@ require 'socket'
 require_relative 'constants'
 require_relative 'overloads'
 require_relative 'logging'
+require_relative 'doh_client'
 
 # require_relative 'devlibs\Hyperspector\Hyperspector'
 
 module DNS_to_DoH_proxy
-  def self.doh_post(connection, dns_message)
-    begin
-      response = connection.post(Defaults[:path], dns_message, Defaults[:doh_post_headers])
-    rescue => exception
-      response = exception
-    end
-    
-    return(response)
-  end
-  
-  def self.prepare_doh_connection(doh_address: Defaults[:doh_address], doh_port: Defaults[:doh_port])
-    https_connection = Net::HTTP.new(?*, doh_port)
-    https_connection.use_ssl = true
-    https_connection.ssl_version = :TLSv1_2
-    https_connection.verify_hostname = false
-    https_connection.ipaddr = doh_address
-    
-    return(https_connection)
-  end
-  
   def self.serve_dns_doh_proxy(
       dns_address: Defaults[:dns_address],
       dns_port: Defaults[:dns_port],
