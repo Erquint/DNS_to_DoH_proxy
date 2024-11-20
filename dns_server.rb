@@ -19,6 +19,7 @@ module DNS_to_DoH_proxy
       socket = UDPSocket.new()
       socket.bind(dns_address, dns_port)
       puts("DNS server bound to #{dns_address}:#{dns_port}", nil)
+      doh_connection = prepare_doh_connection(doh_address: doh_address, doh_port: doh_port)
       
       while (dns_message, sender_addrinfo = socket.recvfrom(512)).first() do
         time = Time.now()
@@ -54,7 +55,6 @@ module DNS_to_DoH_proxy
           end
           handled_locally = true
         else
-          doh_connection = prepare_doh_connection(doh_address: doh_address, doh_port: doh_port)
           doh_response = doh_post(doh_connection, dns_message)
           raise('TLS connection failed to establish!') if doh_response.is_a?(OpenSSL::SSL::SSLError)
           raise("Failed to query DoH server: #{doh_response.code} #{doh_response.message}!") unless doh_response.code.to_i() == 200
