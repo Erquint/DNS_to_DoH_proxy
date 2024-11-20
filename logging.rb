@@ -2,6 +2,9 @@
 Encoding.default_external = Encoding::ASCII_8BIT
 Encoding.default_internal = Encoding::ASCII_8BIT
 
+require_relative 'constants'
+require_relative 'overloads'
+
 module DNS_to_DoH_proxy
   def self.byte_bool?(integer)
     raise('Not an integer!') unless integer.is_a?(Integer)

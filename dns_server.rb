@@ -2,6 +2,10 @@
 Encoding.default_external = Encoding::ASCII_8BIT
 Encoding.default_internal = Encoding::ASCII_8BIT
 
+require_relative 'constants'
+require_relative 'doh_client'
+require_relative 'logging'
+
 module DNS_to_DoH_proxy
   def self.serve_dns_doh_proxy(
       dns_address: Defaults[:dns_address],
