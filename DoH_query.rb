@@ -5,11 +5,12 @@ Encoding.default_internal = Encoding::ASCII_8BIT
 require 'net/http'
 require 'resolv'
 require 'socket'
-# require 'G:\Projects\rb\Hyperspector\Hyperspector.rb'
 
 require_relative 'constants'
 require_relative 'overloads'
 require_relative 'logging'
+
+# require_relative 'devlibs\Hyperspector\Hyperspector'
 
 module DNS_to_DoH_proxy
   def self.doh_post(connection, dns_message)
