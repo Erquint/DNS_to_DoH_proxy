@@ -52,6 +52,10 @@ Defaults = {
   dns_port: 53,
   path: '/dns-query',
   parameter: 'dns',
+  doh_post_headers: {
+    'Content-Type' => 'application/dns-message',
+    'Accept' => 'application/dns-message'
+  },
   local_address_arpa: '100.0.168.192.in-addr.arpa'
 }
 
@@ -72,7 +76,7 @@ def serve_dns_doh_proxy(
     doh_connection.ipaddr = doh_address
     
     while (dns_message, sender_addrinfo = socket.recvfrom(512)).first() do
-      socket.send(doh_connection.post(Defaults[:path], dns_message, {'Content-Type' => 'application/dns-message', 'Accept' => 'application/dns-message'}).body(), 0, sender_addrinfo[3], sender_addrinfo[1])
+      socket.send(doh_connection.post(Defaults[:path], dns_message, Defaults[:doh_post_headers]).body(), 0, sender_addrinfo[3], sender_addrinfo[1])
     end
 end
 
