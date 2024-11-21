@@ -1,6 +1,6 @@
 # DNS_to_DoH_proxy
 
-This is essentially a Ruby DNS server and DNS/SNI-less DoH client stapled together.  
+This is essentially a gemless Ruby DNS server and DNS/SNI-less DoH client stapled together.  
 
 ## Proxy..?
 
