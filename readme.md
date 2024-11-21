@@ -89,4 +89,5 @@ Addresses:  ::1337
 
 ## Caveats and consideratons
 
-This project is early in development with many features missing, but seems fast, capable and resilient to be used as is for now.
+This project is early in development with many features missing, but seems fast, capable and resilient to be used as is for now.  
+I think it won't work with just any DoH server as some servers may be ensuring that SNI matches their TLS certificate and refusins service otherwise.  
