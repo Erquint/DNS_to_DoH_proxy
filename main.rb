@@ -8,6 +8,7 @@ require 'socket'
 
 require_relative 'dns_server'
 
+# require_relative 'devlibs\quack\quack'
 # require_relative 'devlibs\Hyperspector\Hyperspector'
 
 doh_full_address = ARGV[0]
