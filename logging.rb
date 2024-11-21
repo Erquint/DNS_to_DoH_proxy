@@ -51,54 +51,70 @@ module DNS_to_DoH_proxy
     tc = tc.nonzero?() ? "\e[33mTruncated message" : "\e[32mNon-truncated message\e[0m"
     
     questions = dns_message_decoded.question().dup()
-    if questions.any?() && questions.all?(){next(_1.size() == 2)} then
-      questions.map!() do
-        next("#{_1[1].to_s(true)} #{_1[0].to_s(true)}")
+    if questions.any?() then
+      if questions.all?(){next(_1.size() == 2)} then
+        questions.map!() do
+          next("#{_1[1].to_s(true)} #{_1[0].to_s(true)}")
+        end
+        questions = questions.join(?\n)
+      else
+        questions = questions.inspect()
       end
-      questions = questions.join(?\n)
     else
       questions = 'None.'
     end
     
     authorities = dns_message_decoded.authority().dup()
-    if authorities.any?() && authorities.all?(){next(_1.size == 3)} then
-      authorities.map!() do
-        next(<<~HEREDOC)
-          #{_1[0].to_s(true)} #{_1[2].class().to_s(true)}:
-            "MNAME:   #{_1[2].mname().to_s()}
-            "RNAME:   #{_1[2].rname().to_s()}
-            "SERIAL:  #{_1[2].serial().to_s()}
-            "REFRESH: #{_1[2].refresh().to_s()}
-            "RETRY:   #{_1[2].retry().to_s()}
-            "EXPIRE:  #{_1[2].expire().to_s()}
-            "MINIMUM: #{_1[2].minimum().to_s()}
-            "TTL:     #{_1[1].to_s()}
-        HEREDOC
+    if authorities.any?() then
+      if authorities.all?(){next(_1.size == 3)} then
+        authorities.map!() do
+          next(<<~HEREDOC)
+            #{_1[0].to_s(true)} #{_1[2].class().to_s(true)}:
+              "MNAME:   #{_1[2].mname().to_s()}
+              "RNAME:   #{_1[2].rname().to_s()}
+              "SERIAL:  #{_1[2].serial().to_s()}
+              "REFRESH: #{_1[2].refresh().to_s()}
+              "RETRY:   #{_1[2].retry().to_s()}
+              "EXPIRE:  #{_1[2].expire().to_s()}
+              "MINIMUM: #{_1[2].minimum().to_s()}
+              "TTL:     #{_1[1].to_s()}
+          HEREDOC
+        end
+        authorities = authorities.join(?\n)
+      else
+        authorities = authorities.inspect()
       end
-      authorities = authorities.join(?\n)
     else
       authorities = 'None.'
     end
     
     answers = dns_message_decoded.answer().dup()
-    if answers.any?() && answers.all?(){next(_1.size == 3)} then
-      answers.map!() do
-        if _1[2].respond_to?(:address) then
-          next("#{_1[2].class().to_s(true)} #{_1[0].to_s(true)} " +
-          "#{_1[2].address().class().to_s(true)} " +
-          "#{_1[2].address().to_s()} TTL: #{_1[1]}")
-        elsif _1[2].respond_to?(:name) then
-          next("#{_1[2].class().to_s(true)} #{_1[0].to_s(true)} " +
-          "#{_1[2].name().to_s(true)} TTL: #{_1[1]}")
+    if answers.any?() then
+      if answers.all?(){next(_1.size == 3)} then
+        answers.map!() do
+          if _1[2].respond_to?(:address) then
+            next("#{_1[2].class().to_s(true)} #{_1[0].to_s(true)} " +
+            "#{_1[2].address().class().to_s(true)} " +
+            "#{_1[2].address().to_s()} TTL: #{_1[1]}")
+          elsif _1[2].respond_to?(:name) then
+            next("#{_1[2].class().to_s(true)} #{_1[0].to_s(true)} " +
+            "#{_1[2].name().to_s(true)} TTL: #{_1[1]}")
+          end
         end
+        answers = answers.join(?\n)
+      else
+        answers = answers.inspect()
       end
-      answers = answers.join(?\n)
     else
       answers = 'None.'
     end
     
     additions = dns_message_decoded.additional().dup()
-    additions = 'None.' if additions.empty?()
+    if additions.any?() then
+      additions = additions.inspect()
+    else
+      additions = 'None.'
+    end
     
     puts(<<~MESSAGE, nil)
       #{time.strftime((id == 1 ? "\e[34m" : "\e[36m") + "%Y-%m-%d %H:%M:%S\e[0m")}
