@@ -30,7 +30,8 @@ There you have it: any random old application capable of querying plain old DNS 
 
 ## Installation.
 
-Just clone the repo or download a ZIP.  
+Just clone the `server` branch of the repo or download its ZIP.  
+Other branches are just older developmental rudiments.  
 You'll need Ruby to run the code.  
 
 ### Windows.
