@@ -35,7 +35,7 @@ module DNS_to_DoH_proxy
           
           Thread.current.name = dns_message_decoded.id().to_s()
           Thread.current[:dns_message] = dns_message
-          Thread.current[:sender_addrinfo] = sender_addrinfo
+          Thread.current[:sender_addrinfo] = sender_addrinfo.dup()
           
           if dns_message_decoded.question()[0][1] == Resolv::DNS::Resource::IN::PTR &&
             dns_message_decoded.question()[0][0].to_s().include?('1.0.0.127.in-addr.arpa') ||
