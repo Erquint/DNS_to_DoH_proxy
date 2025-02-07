@@ -105,10 +105,12 @@ module DNS_to_DoH_proxy
             
             puts(<<~HEREDOC)
               Failed to process message/thread ID:
-              #{dead_thread.name} for client #{dead_thread[:sender_address]}:#{dead_thread[:sender_port]}
-              and returned a DNS error code.
+                #{dead_thread.name}
+              for client:
+                #{sender_address}:#{sender_port}
+              and returned a DNS error code if possible.
               Exception:
-              #{exception.full_message(highlight: true)}
+                #{exception.full_message(highlight: true)}
             HEREDOC
           end
         end
@@ -123,6 +125,7 @@ module DNS_to_DoH_proxy
       elsif exception.is_a?(Errno::ECONNRESET) then
         puts(<<~HEREDOC)
           #{exception}
+          
           On a UDP-datagram socket this error indicates a previous
           send operation resulted in an ICMP Port Unreachable message.
         HEREDOC
