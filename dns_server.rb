@@ -89,6 +89,7 @@ module DNS_to_DoH_proxy
           begin
             dead_thread.join()
           rescue Exception => exception
+            time = Time.now()
             sender_class, sender_port, sender_address_label, sender_address = dead_thread[:sender_addrinfo]
             
             if dead_thread[:dns_message] then
